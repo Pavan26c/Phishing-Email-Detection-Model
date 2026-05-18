@@ -1,0 +1,461 @@
+
+<h2 class="sr-only">Phishing Email Detection Model — train, evaluate, and test a Naive Bayes classifier on email data</h2>
+
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: var(--font-sans); }
+.wrap { padding: 1.5rem 0; }
+.header { margin-bottom: 1.5rem; }
+.header h1 { font-size: 20px; font-weight: 500; color: var(--color-text-primary); }
+.header p { font-size: 13px; color: var(--color-text-secondary); margin-top: 4px; }
+.tabs { display: flex; gap: 0; border-bottom: 0.5px solid var(--color-border-tertiary); margin-bottom: 1.5rem; }
+.tab { padding: 8px 18px; font-size: 13px; cursor: pointer; border: none; background: none; color: var(--color-text-secondary); border-bottom: 2px solid transparent; margin-bottom: -1px; transition: all .15s; }
+.tab.active { color: var(--color-text-primary); border-bottom-color: var(--color-text-primary); font-weight: 500; }
+.tab:hover:not(.active) { color: var(--color-text-primary); }
+.section { display: none; }
+.section.active { display: block; }
+.metrics-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 10px; margin-bottom: 1.5rem; }
+.metric-card { background: var(--color-background-secondary); border-radius: var(--border-radius-md); padding: 12px 14px; }
+.metric-label { font-size: 11px; color: var(--color-text-secondary); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 4px; }
+.metric-val { font-size: 22px; font-weight: 500; color: var(--color-text-primary); }
+.metric-sub { font-size: 11px; color: var(--color-text-secondary); margin-top: 2px; }
+.confusion-wrap { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-bottom: 1.5rem; }
+.cm-section h3 { font-size: 13px; font-weight: 500; margin-bottom: 10px; color: var(--color-text-secondary); }
+.cm-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.cm-table th { font-weight: 500; font-size: 11px; color: var(--color-text-secondary); padding: 6px 10px; background: var(--color-background-secondary); }
+.cm-table td { padding: 10px; text-align: center; font-size: 15px; font-weight: 500; border: 0.5px solid var(--color-border-tertiary); }
+.cm-tp { background: #EAF3DE; color: #27500A; }
+.cm-tn { background: #E6F1FB; color: #0C447C; }
+.cm-fp { background: #FAECE7; color: #712B13; }
+.cm-fn { background: #FAEEDA; color: #633806; }
+.features-section h3 { font-size: 13px; font-weight: 500; margin-bottom: 10px; color: var(--color-text-secondary); }
+.feat-bar-wrap { margin-bottom: 6px; }
+.feat-bar-label { display: flex; justify-content: space-between; font-size: 12px; margin-bottom: 3px; }
+.feat-bar-label span:first-child { color: var(--color-text-secondary); }
+.feat-bar-label span:last-child { color: var(--color-text-primary); font-weight: 500; }
+.feat-bar-track { height: 6px; border-radius: 3px; background: var(--color-background-secondary); overflow: hidden; }
+.feat-bar-fill { height: 100%; border-radius: 3px; transition: width .6s ease; }
+.phish-bar { background: #E24B4A; }
+.safe-bar { background: #378ADD; }
+.test-area { border: 0.5px solid var(--color-border-tertiary); border-radius: var(--border-radius-lg); overflow: hidden; }
+.test-area-header { padding: 12px 16px; background: var(--color-background-secondary); border-bottom: 0.5px solid var(--color-border-tertiary); display: flex; align-items: center; gap: 10px; }
+.test-area-header span { font-size: 13px; font-weight: 500; color: var(--color-text-secondary); }
+.email-inputs { padding: 16px; display: flex; flex-direction: column; gap: 10px; }
+.email-inputs input, .email-inputs textarea { width: 100%; font-size: 13px; font-family: var(--font-sans); }
+.email-inputs textarea { resize: vertical; min-height: 100px; }
+.test-actions { padding: 0 16px 16px; display: flex; gap: 8px; flex-wrap: wrap; }
+.test-actions button { font-size: 12px; }
+.preset-btn { font-size: 11px; padding: 5px 10px; background: none; border: 0.5px solid var(--color-border-secondary); border-radius: var(--border-radius-md); cursor: pointer; color: var(--color-text-secondary); }
+.preset-btn:hover { background: var(--color-background-secondary); color: var(--color-text-primary); }
+.result-panel { margin: 0 16px 16px; border-radius: var(--border-radius-md); padding: 14px 16px; border: 1px solid transparent; display: none; }
+.result-panel.show { display: block; }
+.result-panel.phishing { background: #FCEBEB; border-color: #F09595; }
+.result-panel.safe { background: #EAF3DE; border-color: #97C459; }
+.result-verdict { font-size: 16px; font-weight: 500; margin-bottom: 6px; }
+.result-panel.phishing .result-verdict { color: #791F1F; }
+.result-panel.safe .result-verdict { color: #27500A; }
+.result-details { font-size: 12px; line-height: 1.6; }
+.result-panel.phishing .result-details { color: #A32D2D; }
+.result-panel.safe .result-details { color: #3B6D11; }
+.confidence-bar { height: 4px; border-radius: 2px; margin-top: 8px; background: var(--color-background-secondary); overflow: hidden; }
+.confidence-fill { height: 100%; border-radius: 2px; }
+.result-panel.phishing .confidence-fill { background: #E24B4A; }
+.result-panel.safe .confidence-fill { background: #639922; }
+.dataset-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
+.email-card { background: var(--color-background-secondary); border-radius: var(--border-radius-md); padding: 12px; border: 0.5px solid var(--color-border-tertiary); }
+.email-card-header { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; margin-bottom: 8px; }
+.email-card-subject { font-size: 12px; font-weight: 500; color: var(--color-text-primary); flex: 1; }
+.badge { font-size: 10px; padding: 2px 8px; border-radius: 10px; font-weight: 500; white-space: nowrap; }
+.badge-phish { background: #FCEBEB; color: #791F1F; }
+.badge-safe { background: #EAF3DE; color: #27500A; }
+.email-card-body { font-size: 11px; color: var(--color-text-secondary); line-height: 1.5; }
+.legend-row { display: flex; gap: 16px; margin-bottom: 10px; }
+.legend-item { display: flex; align-items: center; gap: 5px; font-size: 12px; color: var(--color-text-secondary); }
+.legend-dot { width: 8px; height: 8px; border-radius: 2px; }
+.section-label { font-size: 11px; font-weight: 500; color: var(--color-text-secondary); text-transform: uppercase; letter-spacing: .06em; margin-bottom: 10px; }
+</style>
+
+<div class="wrap">
+  <div class="header">
+    <h1><i class="ti ti-shield-check" aria-hidden="true" style="font-size:20px;vertical-align:-2px;margin-right:8px;"></i>Phishing Email Detection Model</h1>
+    <p>Naive Bayes + TF-IDF classifier · trained on 40 labelled emails · live inference</p>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('results')">Model results</button>
+    <button class="tab" onclick="switchTab('features')">Feature analysis</button>
+    <button class="tab" onclick="switchTab('test')">Test an email</button>
+    <button class="tab" onclick="switchTab('dataset')">Training data</button>
+  </div>
+
+  <div id="results" class="section active">
+    <p class="section-label">Performance metrics</p>
+    <div class="metrics-grid" id="metricsGrid"></div>
+    <div class="confusion-wrap">
+      <div class="cm-section">
+        <h3>Confusion matrix (test set)</h3>
+        <table class="cm-table">
+          <tr><th></th><th>Predicted safe</th><th>Predicted phishing</th></tr>
+          <tr><td style="font-size:11px;color:var(--color-text-secondary);padding:6px 10px;">Actual safe</td><td class="cm-tn" id="cm-tn">—</td><td class="cm-fp" id="cm-fp">—</td></tr>
+          <tr><td style="font-size:11px;color:var(--color-text-secondary);padding:6px 10px;">Actual phishing</td><td class="cm-fn" id="cm-fn">—</td><td class="cm-tp" id="cm-tp">—</td></tr>
+        </table>
+        <div style="display:flex;gap:16px;margin-top:8px;flex-wrap:wrap;">
+          <span style="font-size:11px;color:var(--color-text-secondary);"><span style="display:inline-block;width:8px;height:8px;background:#EAF3DE;border-radius:2px;margin-right:4px;"></span>True negative</span>
+          <span style="font-size:11px;color:var(--color-text-secondary);"><span style="display:inline-block;width:8px;height:8px;background:#FAECE7;border-radius:2px;margin-right:4px;"></span>False positive</span>
+          <span style="font-size:11px;color:var(--color-text-secondary);"><span style="display:inline-block;width:8px;height:8px;background:#FAEEDA;border-radius:2px;margin-right:4px;"></span>False negative</span>
+          <span style="font-size:11px;color:var(--color-text-secondary);"><span style="display:inline-block;width:8px;height:8px;background:#E6F1FB;border-radius:2px;margin-right:4px;"></span>True positive</span>
+        </div>
+      </div>
+      <div class="cm-section">
+        <h3>Class distribution</h3>
+        <div id="distChart" style="position:relative;height:160px;"><canvas id="distCanvas" role="img" aria-label="Distribution of phishing vs safe emails in training set"></canvas></div>
+      </div>
+    </div>
+    <div id="rocChart" style="position:relative;height:220px;margin-bottom:1rem;"><canvas id="rocCanvas" role="img" aria-label="ROC curve showing model performance across classification thresholds"></canvas></div>
+  </div>
+
+  <div id="features" class="section">
+    <p class="section-label">Top phishing indicators</p>
+    <div class="legend-row">
+      <div class="legend-item"><div class="legend-dot" style="background:#E24B4A;"></div> Phishing signal</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#378ADD;"></div> Safe signal</div>
+    </div>
+    <div id="featBars"></div>
+  </div>
+
+  <div id="test" class="section">
+    <p class="section-label">Live classifier</p>
+    <div class="test-area">
+      <div class="test-area-header">
+        <i class="ti ti-mail" aria-hidden="true" style="font-size:16px;color:var(--color-text-secondary);"></i>
+        <span>Paste or type an email to classify it</span>
+      </div>
+      <div class="email-inputs">
+        <input id="emailSubject" type="text" placeholder="Subject line…" />
+        <textarea id="emailBody" placeholder="Email body…"></textarea>
+      </div>
+      <div class="test-actions">
+        <button onclick="classifyEmail()">Classify email ↗</button>
+        <button class="preset-btn" onclick="loadPreset('phish1')">Load phishing sample 1</button>
+        <button class="preset-btn" onclick="loadPreset('phish2')">Load phishing sample 2</button>
+        <button class="preset-btn" onclick="loadPreset('safe1')">Load safe sample 1</button>
+        <button class="preset-btn" onclick="loadPreset('safe2')">Load safe sample 2</button>
+      </div>
+      <div class="result-panel" id="resultPanel">
+        <div class="result-verdict" id="resultVerdict"></div>
+        <div class="result-details" id="resultDetails"></div>
+        <div class="confidence-bar"><div class="confidence-fill" id="confidenceFill" style="width:0%;"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <div id="dataset" class="section">
+    <p class="section-label">Sample training emails</p>
+    <div class="dataset-grid" id="datasetGrid"></div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script>
+const TRAINING_DATA = [
+  {label:1,subject:"Urgent: Verify your account now",body:"Dear user, your account has been suspended. Click here immediately to verify your identity and avoid losing access. Provide your password and credit card number to restore service. http://secure-login-verify.xyz/account"},
+  {label:1,subject:"You won $1,000,000!",body:"Congratulations! You have been selected as our lucky winner. To claim your prize, send your bank account details and social security number to prize@lottery-winners.net immediately."},
+  {label:1,subject:"Action Required: PayPal account limited",body:"We noticed unusual activity in your PayPal account. Your account access is limited. Please verify your information at http://paypal-secure-verify.com/login to restore full access within 24 hours."},
+  {label:1,subject:"Your Apple ID has been locked",body:"Apple Support: Your Apple ID was used to sign in on a new device. If you did not authorize this, click here to secure your account now: http://apple-id-verify.net/secure"},
+  {label:1,subject:"FINAL NOTICE - unpaid invoice",body:"This is your final notice. You owe $847.00. Pay immediately to avoid legal action. Click http://payment-invoice-urgent.com to settle your debt and avoid collections."},
+  {label:1,subject:"Bank account suspended - immediate action",body:"Your bank account has been temporarily suspended due to suspicious transactions. Confirm your identity by providing your full name, account number and PIN at http://bank-secure-login.info"},
+  {label:1,subject:"Free iPhone 15 - claim yours",body:"You have been selected to receive a free iPhone 15! Limited time offer. Enter your shipping details and credit card for processing fee at http://free-iphone-offer.biz/claim now!"},
+  {label:1,subject:"Amazon order cancelled - verify payment",body:"Your recent Amazon order #892-3341-9921 was cancelled due to payment failure. Please update your payment information at http://amazon-payment-update.xyz to reprocess."},
+  {label:1,subject:"IRS tax refund pending - claim now",body:"The IRS has processed a tax refund of $2,847 for you. To receive your refund click http://irs-refund-claim.com and enter your Social Security Number and bank routing number."},
+  {label:1,subject:"Netflix account suspended",body:"Your Netflix subscription payment has failed. Update your billing information within 48 hours to avoid account termination: http://netflix-billing-update.net/verify"},
+  {label:1,subject:"Microsoft Security Alert",body:"Unusual sign-in activity detected on your Microsoft account. Secure your account immediately at http://microsoft-security-alert.xyz. Do not ignore this message or your account will be deleted."},
+  {label:1,subject:"HR: Update your direct deposit info",body:"Dear employee, IT has upgraded our payroll system. All employees must re-enter their bank account details at http://hr-payroll-update.biz/login by Friday to receive their next paycheck."},
+  {label:1,subject:"COVID-19 relief fund - apply now",body:"You are eligible for a government COVID relief payment of $1,400. Apply by clicking http://covid-relief-gov.xyz and providing your social security number and banking details within 24 hours."},
+  {label:1,subject:"DHL: Package delivery failed",body:"DHL: We attempted to deliver your package but failed. To reschedule delivery, pay the small customs fee of $2.99 at http://dhl-delivery-reschedule.net and provide your card details."},
+  {label:1,subject:"Your email will be deactivated",body:"WARNING: Your email account storage is full and will be deactivated in 24 hours. Click here to upgrade for free: http://email-upgrade-free.xyz/verify and enter your current password to confirm."},
+  {label:1,subject:"Password expires today - update now",body:"Your password expires in 2 hours. Failure to update will lock your account. Visit http://password-reset-now.biz immediately and re-enter your username and old password to continue."},
+  {label:1,subject:"Crypto investment opportunity - 500% returns",body:"Exclusive investment opportunity! Guaranteed 500% returns on Bitcoin investments. Send 0.1 BTC to wallet 1A2b3C4d5E6f and receive 0.5 BTC back within 24 hours. Limited spots available!"},
+  {label:1,subject:"You have a pending wire transfer",body:"A wire transfer of $9,800 is pending approval. To release funds please verify your identity at http://wire-transfer-pending.xyz by entering your account credentials and routing number."},
+  {label:1,subject:"Zelle payment request from unknown",body:"Someone has sent you $500 via Zelle. To accept, click http://zelle-payment-accept.net and link your bank account. This offer expires in 12 hours."},
+  {label:1,subject:"Update your password - security breach",body:"Our systems detected a data breach affecting your account. Immediately reset your password at http://urgent-password-reset.biz by confirming your old password to protect your account."},
+  {label:0,subject:"Team standup tomorrow at 10am",body:"Hi everyone, just a reminder that we have our weekly standup tomorrow morning at 10:00 AM in the main conference room. Please come prepared with your updates. See you there!"},
+  {label:0,subject:"Q3 financial report attached",body:"Hi team, please find attached the Q3 financial report for your review. The numbers look strong this quarter. Let me know if you have any questions or need clarification on any figures."},
+  {label:0,subject:"Lunch plans this Friday?",body:"Hey, a few of us are thinking of grabbing lunch at the Italian place on Main Street this Friday around 1pm. Are you in? Let me know and I'll make a reservation for the group."},
+  {label:0,subject:"Your order has shipped",body:"Good news! Your order #44291-B has shipped and is on its way. Your tracking number is 1Z999AA10123456784. Estimated delivery is Thursday. Thanks for shopping with us!"},
+  {label:0,subject:"Engineering review notes",body:"Here are the notes from today's engineering review. We covered the new authentication module, database migration plan, and the upcoming API v2 release. Next review is in two weeks."},
+  {label:0,subject:"Dentist appointment reminder",body:"This is a reminder that you have a dental appointment scheduled for this Thursday at 3:30 PM with Dr. Patel. Please arrive 10 minutes early to fill out your updated insurance forms."},
+  {label:0,subject:"New research paper on machine learning",body:"I came across this interesting paper on transformer architectures published in JMLR last week. Thought you might find it relevant to your current research. Happy to discuss it over coffee."},
+  {label:0,subject:"Project deadline extended to next week",body:"Good news everyone — the project deadline has been extended by one week due to the additional scope added last sprint. Please update your task estimates in Jira accordingly."},
+  {label:0,subject:"Your subscription renewal confirmation",body:"Thank you for renewing your annual subscription. Your next billing date is December 14, 2025. You can manage your subscription settings at any time from your account dashboard."},
+  {label:0,subject:"Book club: this month's selection",body:"Hi all, this month we're reading The Remains of the Day by Kazuo Ishiguro. Discussion will be at Maria's place on the 28th at 7pm. Hope to see everyone there!"},
+  {label:0,subject:"Colleague introduction",body:"Hi, I wanted to introduce you to Priya who just joined our analytics team. She has a strong background in statistical modeling and will be working on the customer segmentation project."},
+  {label:0,subject:"Feedback on your presentation",body:"Just wanted to say your presentation on the new product roadmap was excellent. The slides were clear, the data was compelling, and you handled the Q&A really well. Great job!"},
+  {label:0,subject:"Office closed on Monday",body:"Reminder that the office will be closed this Monday for the public holiday. Normal operations resume Tuesday. Have a great long weekend and we'll see you back next week."},
+  {label:0,subject:"Invoice #2047 from Designcraft",body:"Please find attached invoice #2047 for the logo redesign project completed last month. Total amount due is $850, payable by the end of this month via bank transfer. Thank you!"},
+  {label:0,subject:"Python tutorial recommendation",body:"If you're looking to sharpen your Python skills, I highly recommend the Real Python website. They have excellent tutorials on everything from web scraping to data analysis. All free too."},
+  {label:0,subject:"Conference talk proposal accepted",body:"Congratulations! Your talk proposal 'Practical ML in Production' has been accepted for the upcoming tech conference. You'll be presenting on the afternoon of Day 2. Full schedule to follow."},
+  {label:0,subject:"Grocery list for the week",body:"Here's the grocery list for this week: eggs, whole milk, sourdough bread, cheddar cheese, chicken thighs, broccoli, cherry tomatoes, olive oil, pasta, and Greek yogurt."},
+  {label:0,subject:"Flight booking confirmation",body:"Your flight to Bangalore (BLR) on November 22 at 6:45 AM has been confirmed. Booking reference: BLR-8827X. Check-in opens 24 hours before departure. Have a safe journey!"},
+  {label:0,subject:"Weekend cricket match - need players",body:"Hey team, we're short 2 players for Sunday's cricket match at 9am. Anyone available? The ground is booked, stumps and gear are sorted. Reply ASAP if you can make it!"},
+  {label:0,subject:"GitHub pull request review requested",body:"Nikhil has requested your review on PR #234: 'Add rate limiting to API endpoints'. The changes look reasonable in scope. Target merge is before the Thursday release freeze."},
+];
+
+function tokenize(text) {
+  return text.toLowerCase()
+    .replace(/https?:\/\/\S+/g,'URLTOKEN')
+    .replace(/[^a-z\s]/g,' ')
+    .split(/\s+/)
+    .filter(t=>t.length>2);
+}
+
+function buildVocab(data) {
+  const vocab={};
+  data.forEach(d=>{
+    const tokens=tokenize(d.subject+' '+d.body);
+    tokens.forEach(t=>{if(!vocab[t])vocab[t]=0;vocab[t]++;});
+  });
+  return Object.keys(vocab).filter(k=>vocab[k]>=1);
+}
+
+function tfidf(data, vocab) {
+  const N=data.length;
+  const df={};
+  vocab.forEach(t=>{df[t]=0;});
+  data.forEach(d=>{
+    const tks=new Set(tokenize(d.subject+' '+d.body));
+    tks.forEach(t=>{if(df[t]!==undefined)df[t]++;});
+  });
+  return data.map(d=>{
+    const tokens=tokenize(d.subject+' '+d.body);
+    const tf={};
+    tokens.forEach(t=>{if(!tf[t])tf[t]=0;tf[t]++;});
+    const len=tokens.length||1;
+    const vec={};
+    vocab.forEach(t=>{
+      const tfv=(tf[t]||0)/len;
+      const idfv=Math.log((N+1)/((df[t]||0)+1))+1;
+      vec[t]=tfv*idfv;
+    });
+    return vec;
+  });
+}
+
+function shuffleSplit(data, testRatio=0.3, seed=42) {
+  const arr=[...data];
+  let s=seed;
+  arr.sort(()=>{s=(s*1664525+1013904223)&0xffffffff;return(s&1)?1:-1;});
+  const n=Math.floor(arr.length*(1-testRatio));
+  return {train:arr.slice(0,n),test:arr.slice(n)};
+}
+
+class NaiveBayes {
+  constructor(alpha=1.0){this.alpha=alpha;}
+  train(X,y,vocab){
+    this.vocab=vocab;
+    this.classes=[0,1];
+    this.logPrior={};
+    this.logLikelihood={};
+    const n=y.length;
+    this.classes.forEach(c=>{
+      const idx=y.reduce((a,v,i)=>v===c?[...a,i]:a,[]);
+      this.logPrior[c]=Math.log(idx.length/n);
+      const featureSum={};
+      vocab.forEach(t=>{featureSum[t]=this.alpha;});
+      idx.forEach(i=>{vocab.forEach(t=>{featureSum[t]+=(X[i][t]||0);});});
+      const total=Object.values(featureSum).reduce((a,b)=>a+b,0);
+      this.logLikelihood[c]={};
+      vocab.forEach(t=>{this.logLikelihood[c][t]=Math.log(featureSum[t]/total);});
+    });
+  }
+  predictProba(x){
+    const scores={};
+    this.classes.forEach(c=>{
+      let s=this.logPrior[c];
+      this.vocab.forEach(t=>{if(x[t]>0)s+=this.logLikelihood[c][t]*(x[t]);});
+      scores[c]=s;
+    });
+    const maxS=Math.max(...Object.values(scores));
+    const exps={};
+    let sumE=0;
+    this.classes.forEach(c=>{exps[c]=Math.exp(scores[c]-maxS);sumE+=exps[c];});
+    const proba={};
+    this.classes.forEach(c=>{proba[c]=exps[c]/sumE;});
+    return proba;
+  }
+  predict(x){
+    const p=this.predictProba(x);
+    return p[1]>=0.5?1:0;
+  }
+}
+
+const {train,test}=shuffleSplit(TRAINING_DATA,0.28);
+const vocab=buildVocab(train);
+const trainX=tfidf(train,vocab);
+const testX=tfidf(test,vocab);
+const trainY=train.map(d=>d.label);
+const testY=test.map(d=>d.label);
+
+const model=new NaiveBayes(0.5);
+model.train(trainX,trainY,vocab);
+
+const preds=testX.map(x=>model.predict(x));
+const probas=testX.map(x=>model.predictProba(x));
+
+let tp=0,tn=0,fp=0,fn=0;
+preds.forEach((p,i)=>{
+  if(p===1&&testY[i]===1)tp++;
+  else if(p===0&&testY[i]===0)tn++;
+  else if(p===1&&testY[i]===0)fp++;
+  else fn++;
+});
+
+const accuracy=(tp+tn)/(tp+tn+fp+fn);
+const precision=tp/(tp+fp)||0;
+const recall=tp/(tp+fn)||0;
+const f1=2*(precision*recall)/(precision+recall)||0;
+
+document.getElementById('cm-tp').textContent=tp;
+document.getElementById('cm-tn').textContent=tn;
+document.getElementById('cm-fp').textContent=fp;
+document.getElementById('cm-fn').textContent=fn;
+
+const metricsData=[
+  {label:'Accuracy',val:(accuracy*100).toFixed(1)+'%',sub:`${tp+tn} of ${preds.length} correct`},
+  {label:'Precision',val:(precision*100).toFixed(1)+'%',sub:'Phishing class'},
+  {label:'Recall',val:(recall*100).toFixed(1)+'%',sub:'Phishing class'},
+  {label:'F1 Score',val:(f1*100).toFixed(1)+'%',sub:'Harmonic mean'},
+];
+const mg=document.getElementById('metricsGrid');
+metricsData.forEach(m=>{
+  const d=document.createElement('div');
+  d.className='metric-card';
+  d.innerHTML=`<div class="metric-label">${m.label}</div><div class="metric-val">${m.val}</div><div class="metric-sub">${m.sub}</div>`;
+  mg.appendChild(d);
+});
+
+new Chart(document.getElementById('distCanvas'),{
+  type:'doughnut',
+  data:{
+    labels:['Safe emails','Phishing emails'],
+    datasets:[{data:[TRAINING_DATA.filter(d=>d.label===0).length,TRAINING_DATA.filter(d=>d.label===1).length],backgroundColor:['#378ADD','#E24B4A'],borderWidth:0}]
+  },
+  options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:c=>`${c.label}: ${c.parsed}`}}}}
+});
+
+const sorted=probas.map((p,i)=>({p:p[1],label:testY[i]})).sort((a,b)=>b.p-a.p);
+const rocPts=[];
+let tpR=0,fpR=0;
+const totalP=testY.filter(v=>v===1).length;
+const totalN=testY.filter(v=>v===0).length;
+rocPts.push({x:0,y:0});
+sorted.forEach(s=>{if(s.label===1)tpR++;else fpR++;rocPts.push({x:fpR/totalN,y:tpR/totalP});});
+rocPts.push({x:1,y:1});
+
+new Chart(document.getElementById('rocCanvas'),{
+  type:'line',
+  data:{
+    datasets:[
+      {label:'ROC curve',data:rocPts.map(p=>({x:Math.round(p.x*100)/100,y:Math.round(p.y*100)/100})),borderColor:'#185FA5',backgroundColor:'rgba(24,95,165,0.08)',fill:true,tension:0.1,pointRadius:0,borderWidth:2},
+      {label:'Random baseline',data:[{x:0,y:0},{x:1,y:1}],borderColor:'#888780',borderDash:[4,4],pointRadius:0,borderWidth:1,fill:false}
+    ]
+  },
+  options:{
+    responsive:true,maintainAspectRatio:false,
+    scales:{
+      x:{title:{display:true,text:'False positive rate',font:{size:11}},min:0,max:1,ticks:{stepSize:0.2}},
+      y:{title:{display:true,text:'True positive rate',font:{size:11}},min:0,max:1,ticks:{stepSize:0.2}}
+    },
+    plugins:{legend:{display:false},tooltip:{mode:'index'}}
+  }
+});
+
+const phishWords=['urltoken','account','verify','click','password','suspended','immediately','credit','bank','urgent','free','won','limited','secure','update','enter','provide','login','confirm','claim'];
+const safeWords=['team','project','please','attached','meeting','report','schedule','week','review','thanks','conference','email','message','reminder','update','note','morning','today','tomorrow','work'];
+
+const fb=document.getElementById('featBars');
+const allWords=[...phishWords.slice(0,10).map(w=>({w,type:'phish'})),...safeWords.slice(0,10).map(w=>({w,type:'safe'}))];
+const maxScore=Math.max(...allWords.map(({w})=>{
+  const p=model.logLikelihood[1][w]||Math.log(0.0001);
+  const s=model.logLikelihood[0][w]||Math.log(0.0001);
+  return Math.abs(p-s);
+}));
+
+allWords.forEach(({w,type})=>{
+  const lp=model.logLikelihood[1][w]||Math.log(0.0001);
+  const ls=model.logLikelihood[0][w]||Math.log(0.0001);
+  const score=Math.abs(lp-ls);
+  const pct=Math.round((score/maxScore)*100);
+  const div=document.createElement('div');
+  div.className='feat-bar-wrap';
+  div.innerHTML=`<div class="feat-bar-label"><span>${w}</span><span>${type==='phish'?'Phishing':'Safe'} signal</span></div><div class="feat-bar-track"><div class="feat-bar-fill ${type==='phish'?'phish-bar':'safe-bar'}" style="width:${pct}%;"></div></div>`;
+  fb.appendChild(div);
+});
+
+const presets={
+  phish1:{subject:"Your account will be suspended",body:"Dear customer, we have detected unusual activity on your account. Please verify your identity immediately by clicking http://account-verify-now.xyz and entering your username, password and credit card details to avoid suspension."},
+  phish2:{subject:"Claim your Amazon gift card - limited time",body:"Congratulations! You have been selected to receive a $500 Amazon gift card. To claim your free gift, visit http://amazon-gift-claim.net and provide your bank account number for processing. Offer expires in 24 hours!"},
+  safe1:{subject:"Weekend cricket match update",body:"Hey, just wanted to confirm the cricket match is still on for Sunday at 9am. The pitch has been booked and we have enough players now. Bring your own bat if you have one. See you there!"},
+  safe2:{subject:"Project deadline reminder",body:"Hi team, just a quick reminder that the project deliverables are due by end of day Friday. Please make sure your sections are completed and reviewed before submitting. Reach out if you need any help."},
+};
+
+function loadPreset(key){
+  document.getElementById('emailSubject').value=presets[key].subject;
+  document.getElementById('emailBody').value=presets[key].body;
+  document.getElementById('resultPanel').style.display='none';
+  document.getElementById('resultPanel').className='result-panel';
+}
+
+function classifyEmail(){
+  const sub=document.getElementById('emailSubject').value;
+  const body=document.getElementById('emailBody').value;
+  if(!sub&&!body)return;
+  const tokens=tokenize(sub+' '+body);
+  const tf={};
+  tokens.forEach(t=>{if(!tf[t])tf[t]=0;tf[t]++;});
+  const len=tokens.length||1;
+  const vec={};
+  vocab.forEach(t=>{
+    const tfv=(tf[t]||0)/len;
+    const idfv=1;
+    vec[t]=tfv*idfv;
+  });
+  const proba=model.predictProba(vec);
+  const pred=proba[1]>=0.5?1:0;
+  const conf=pred===1?proba[1]:proba[0];
+  const pct=Math.round(conf*100);
+
+  const phishSignals=phishWords.filter(w=>tokens.includes(w));
+  const urlCount=(sub+' '+body).match(/https?:\/\/\S+/g);
+  const indicators=[];
+  if(urlCount)indicators.push(`${urlCount.length} URL(s) detected`);
+  if(phishSignals.length)indicators.push(`High-risk keywords: ${phishSignals.slice(0,4).join(', ')}`);
+
+  const panel=document.getElementById('resultPanel');
+  const verdict=document.getElementById('resultVerdict');
+  const details=document.getElementById('resultDetails');
+  const fill=document.getElementById('confidenceFill');
+
+  panel.className='result-panel show '+(pred===1?'phishing':'safe');
+  verdict.innerHTML=(pred===1?'<i class="ti ti-alert-triangle" aria-hidden="true" style="margin-right:6px;"></i>Phishing detected':'<i class="ti ti-shield-check" aria-hidden="true" style="margin-right:6px;"></i>Email appears safe');
+  details.innerHTML=`Confidence: ${pct}%${indicators.length?'<br>Signals: '+indicators.join(' · '):''}`;
+  setTimeout(()=>{fill.style.width=pct+'%';},50);
+}
+
+const dg=document.getElementById('datasetGrid');
+TRAINING_DATA.slice(0,12).forEach(d=>{
+  const div=document.createElement('div');
+  div.className='email-card';
+  div.innerHTML=`<div class="email-card-header"><div class="email-card-subject">${d.subject}</div><span class="badge ${d.label?'badge-phish':'badge-safe'}">${d.label?'Phishing':'Safe'}</span></div><div class="email-card-body">${d.body.slice(0,100)}…</div>`;
+  dg.appendChild(div);
+});
+
+function switchTab(name){
+  document.querySelectorAll('.tab').forEach((t,i)=>{
+    const names=['results','features','test','dataset'];
+    t.classList.toggle('active',names[i]===name);
+  });
+  document.querySelectorAll('.section').forEach(s=>{
+    s.classList.toggle('active',s.id===name);
+  });
+}
+</script>
